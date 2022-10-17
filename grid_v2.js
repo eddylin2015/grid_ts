@@ -1,4 +1,64 @@
-////PUBLIC
+// grid_v2.js update 2022-10-13
+// 基礎功能,表格弍操作
+// javascripts/cool/grid_v2.js
+
+
+/*pug
+view_base.pug
+    link(rel='stylesheet', href='/stylesheets/bootstrap.min.css')
+    link( href='/jquery-ui-dist/jquery-ui.min.css',rel='stylesheet' )
+	script(src='/javascripts/jquery.js')
+    script(src='/jquery-ui-dist/jquery-ui.min.js')
+	script(src='/javascripts/bootstrap.js')
+    script(src='/javascripts/cool/grid_v2.js?v=7')
+    link(rel='stylesheet' ,href='/javascripts/cool/grid.css')
+    script.
+      $(document).ready(function(){
+        BindingFunctions("editbtn", "savebtn", 'readmodebtn');
+        GenOriginalData();
+        $('#exportxls_button').click(function(){ exportxls_button('EDUTBL');  });
+        $("#exportcsv_button").on('click', function(event) {  exportcsv_button("EDUTBL");  });
+        $('td').filter(function () {return this.innerHTML.match(/^[0-9\s\.,]+$/);}).css('text-align', 'right');
+	  });    
+extends ./view_base.pug
+block content
+  div
+    a(href="#",class="btn btn-primary btn-sm",style="color:yellow;")#editbtn 編輯
+    a(href="#",class="btn btn-primary btn-sm",style="color:yellow;")#savebtn 儲存
+    a(href="#",class="btn btn-primary btn-sm",style="color:yellow;")#readmodebtn 唯讀
+    a(href="#",class="btn btn-primary btn-sm",style="color:yellow;")#exportcsv_button 匯出csv  
+    a(href="#",class="btn btn-primary btn-sm",style="color:yellow;")#exportxls_button 匯出xls  
+  style.
+    div.container{ margin:0px; }
+    td{padding :10px;}
+  - clist=["A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z"]    
+  table#EDUTBL  
+    - crs=[  `KR-ID` ,  `Term` ,  `Semester` ,  `Stud_ref`,  `classno` ,  `seat`    ,  `c_name`  ,  `Reviews` ,  `honors` ,  `Later`   ,  `UpClass`      ]
+    tr
+      - cidx=0
+      - headerfield={}
+      each elm in crs
+        - cidx++
+        - headerfield[cidx]=elm
+        td= elm
+    each row in books 
+      - ref= row.kr_id
+      tr
+        - cidx=0
+        each elm in row
+          - cidx++
+          if cidx<6
+            td= elm 
+          else  
+            td.M(id=`M${clist[cidx-6]}_${headerfield[cidx]}_${ref}`)= elm
+  script.
+    var fn= '!{fn}';
+    var PostUrl='/postdata';  // /postdata/${ref}    
+    $('#returnUrlBtn').attr("href", "/home");
+    $(document).ready(function(){   });  
+*/
+
+//// PUBLIC VARIABLES
 var ZeroMarkWarning_Flag = false;
 var curr_td = null;
 var PastFrm = null;
@@ -6,12 +66,68 @@ var CSVFrm = null;
 var OriginalData = null;
 var PostUrl = null;
 var _Field_Defs = null;
-////Program Start
-function BindingZeroClipboard(id, tablename) { throw new expection("no imp") }
+const DebugFlag=null;
+////  Program Start
+function cell_closeedit() {
+	$('.M').each(function (i) {	if ( $(this).has(":input").length > 0) {
+			input = $(this).children();	$(this).text(input.val()); input.remove();
+		}	});
+}
+function exportxls_button(EDUTBL){
+	cell_closeedit();
+	var universalBOM = "\uFEFF";
+	var txt= document.getElementById(EDUTBL).innerHTML;
+	var htmls = "";
+	var uri = 'data:application/vnd.ms-excel;charset=UTF-8;base64,';
+	var template = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><meta http-equiv="content-type" content="application/vnd.ms-excel; charset=UTF-8"><head><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>{worksheet}</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body><table>{table}</table></body></html>'; 
+	var base64 = function(s) {
+		return window.btoa(unescape(encodeURIComponent(s)))
+	};
+	var format = function(s, c) {
+		return s.replace(/{(\w+)}/g, function(m, p) {
+			return c[p];
+		})
+	};
+	htmls = txt
+	var ctx = {
+		worksheet : 'Worksheet',
+		table : htmls
+	}
+	var link = document.createElement("a");
+	link.download = "export.xls";
+	link.href = uri + base64(format(template, ctx));
+	link.click();
+  }
+function exportcsv_button(EDUTBL) {
+	  cell_closeedit();
+	  var table = document.getElementById(EDUTBL);
+	  var rows =[];
+	  for(var i=0,row; row = table.rows[i];i++){
+		  let cols=[]
+		  for(var j=0;j<row.cells.length;j++)
+		  {
+			cols.push(row.cells[j].innerText);
+		  }
+		  rows.push(cols);
+	  }
+	  var universalBOM = "\uFEFF";
+	  csvContent = "data:text/csv;charset=utf-8,"+universalBOM
+	  rows.forEach(function(rowArray){
+		  row = rowArray.join(",");
+		  csvContent += row + "\r\n";
+	  });
+	  var encodedUri = encodeURI(csvContent);
+	  var link = document.createElement("a");
+	  link.setAttribute("href", encodedUri);
+	  link.setAttribute("download", "Report.csv");
+	  document.body.appendChild(link);
+	  link.click();
+}         
+
+function BindingZeroClipboard(id, tbl) { alert("Error:Not implement ZeroClipboard!") }
 function bind_txtinput_paste($txtinput, cell) {
 	$txtinput.bind('paste', function (e) {
-		var txt = e.originalEvent.clipboardData.getData('Text');
-		console.log(txt)
+		var txt = e.originalEvent.clipboardData.getData('Text').replace(/\n$/, "");
 		var data_arr = txt.split('\n');
 		var rowcnt = data_arr.length; let linefeed = false;
 		var colcnt = data_arr[0].split('\t').length;
@@ -23,16 +139,15 @@ function bind_txtinput_paste($txtinput, cell) {
 			var temp_ar = data_arr[j].split('\t');
 			if (temp_ar.length >= colcnt) {
 				for (k = 0; k < colcnt; k++)
-					f_data_arr[j][k] = temp_ar[k];
+					f_data_arr[j][k] = temp_ar[k].replace(/\n$/, "").replace(/\r$/, "");
 			}
 		}
-		//return f_data_arr;
 		if (rowcnt > 1 || colcnt > 1) {
 			if (confirm("DataGrid " + rowcnt + "x" + colcnt + " Paste " + rowcnt + "x" + colcnt + "?")) {
 				var c_cell = cell;
 				var c_cell_col_id = 0;
 				var f_cell = c_cell.parent().children('td:first');
-				for (i = 0; i < 26; i++) {
+				for (i = 0; i < 64; i++) {
 					c_cell_col_id++;
 					if (c_cell.attr('id') == f_cell.attr('id')) {
 						break;
@@ -77,11 +192,9 @@ function editCell(cell) {
 
 function closeedit() {
 	$('.M').each(function (i) {
-		if ($(this).has(":input").length == 0) {
-		} else {
+		if ($(this).has(":input").length > 0) {
 			input = $(this).children();
-			strv = input.val();
-			$(this).text(strv);
+			$(this).text(input.val());
 			input.remove();
 		}
 	});
@@ -96,8 +209,7 @@ function GenOriginalData() {
 		$('.M').each(function (i) {
 			OriginalData[$(this).attr('id')] = $(this).text();
 		});
-	}
-	// alert(JSON.stringify(OriginalData));
+	}   // if(DebugFlag) console.log(JSON.stringify(OriginalData));
 }
 
 function SplitPastFrmText(txt) {
@@ -170,7 +282,7 @@ function BindingPastFrm(frm, txt, table) {
 			buttons: {
 				"past": function () {
 					closeedit();
-					//alert($("#"+txt).val());
+					// if( DebugFlag ) console.log($("#"+txt).val());
 					var fill_data = SplitPastFrmText($("#" + txt).val());
 					for (i = 0; i < fill_data.length; i++) {
 						var fieldname = "";
@@ -190,31 +302,30 @@ function BindingPastFrm(frm, txt, table) {
 			}
 		});
 }
-
-
+///
 
 class FrmMessageBox {
 	constructor() {
-	  this.messagebox = $( "<div><h4>Message Bo<a href='#' onclick='FrmMessageBox.closebox(this);'>[x]</a></h4></div>" )
-	  .css({
-		  'position' : 'absolute',
-		  'right' : '10%',
-		  'top' : '10%',
-		  'border':'3px solid black',
-		  'background-color':'white'
-	  }).width(400).height(300).appendTo( "body" );
-	  this.year = 0;
+		this.messagebox = $("<div><h4>Message Bo<a href='#' onclick='FrmMessageBox.closebox(this);'>[x]</a></h4></div>")
+			.css({
+				'position': 'absolute',
+				'right': '10%',
+				'top': '10%',
+				'border': '3px solid black',
+				'background-color': 'white',
+				'overflow': 'scroll',
+				'height': '400px'
+			}).width(400).height(300).appendTo("body");
+		this.year = 0;
 	}
-
-	static closebox(x){x.parentElement.parentElement.style.display = "none";}
-
+	static closebox(x) { x.parentElement.parentElement.style.display = "none"; }
 	msg(x) {
-		this.messagebox.html(this.messagebox.html()+'<br>'+x);
+		this.messagebox.html(this.messagebox.html() + '<br>' + x);
 	}
 }
 
-function posturl(PostUrl,rowid,jsondata,frmMessageBox ){
-	return new Promise((resolve,reject)=>{
+function posturl(PostUrl, rowid, jsondata, frmMessageBox) {
+	return new Promise((resolve, reject) => {
 		$.ajax({
 			method: "POST",
 			url: PostUrl + `/${rowid}`,
@@ -222,21 +333,22 @@ function posturl(PostUrl,rowid,jsondata,frmMessageBox ){
 			contentType: "application/json",
 			timeout: 6000,
 			statusCode: {
-				500: function() { 
-				  resolve(rowid);
+				500: function () {
+					resolve(rowid);
 				}
-			  }
+			}
 		}).done(function (data) {
 			frmMessageBox.msg(JSON.stringify(data))
 			resolve(0)
-		}).fail(function (jqXHR, textStatus, errorThrown) { 
+		}).fail(function (jqXHR, textStatus, errorThrown) {
 			frmMessageBox.msg("over time!")
 			resolve(rowid);
 		});
 	})
 }
+///
 
-function BindingFunctions(editbtn, savebtn, readmodbtn) {
+async function BindingFunctions(editbtn, savebtn, readmodbtn) {
 	$('#' + editbtn).click(function (event) {
 		var input_first = null;
 		$('.M').each(function (i) {
@@ -247,13 +359,12 @@ function BindingFunctions(editbtn, savebtn, readmodbtn) {
 		});
 		if (input_first) input_first.focus();
 	});
-
-	$('#' + savebtn).click(async function (event) {
+	$('#' + savebtn).click( async function (event) {
 		closeedit();
 		var json = {};
-		var result_set = [];
+		var result_set = "";
 		var error_msg = "";
-		var frmMessageBox=new FrmMessageBox();
+		var frmMessageBox = new FrmMessageBox();
 		$('.M').each(function (i) {
 			if (OriginalData[$(this).attr('id')] != $(this).text()) {
 				let elarr = $(this).attr('id').split("_")
@@ -264,41 +375,33 @@ function BindingFunctions(editbtn, savebtn, readmodbtn) {
 				if (_Field_Defs == null) {
 					json[el_id][el_key] = $(this).text().trim();
 				} else {
-					if (_Field_Defs[fH] == 'INT' && !$(this).text().trim().match(/^[-]*[0-9.]+$/)) {
+					if ((_Field_Defs[fH] == 'INT'||_Field_Defs[fH] == 'DEC' )&& !$(this).text().trim().match(/^[0-9.]+$/)) {
 						error_msg = 'ERROR:INT !\n' + $(this).attr('id') + '\n' + $(this).text();
 					} else {
 						json[el_id][el_key] = $(this).text().trim();
 					}
 				}
+				if(DebugFlag) console.log(elarr,el_id,el_key,json[el_id][el_key] )
 			}
 		});
 		if(error_msg !="" ){ alert(error_msg);}
-		if (PostUrl != null) {
-
-			if(PostUrl.indexOf("updateSet")>-1){
-				let stat_=await posturl(PostUrl,0,json,frmMessageBox )
-			}else{
+        if (PostUrl != null) {
 			for (let rowid in json) {
 				let jsondata = json[rowid]
-				let stat_=await posturl(PostUrl,rowid,jsondata,frmMessageBox )
-				if (stat_!=0 )
-				{
-					result_set.push(stat_)
+				if(Object.keys(jsondata).length >0){
+				   let stat_ = await posturl(PostUrl, rowid, jsondata, frmMessageBox)
 				}
+				//$.ajax({
+				//	method: "POST",
+				//	url: PostUrl + `/${rowid}`,
+				//	data: JSON.stringify(jsondata),
+				//	contentType: "application/json"
+				//}).done(function (data) { console.log(data) });
 			}
-			for (let rowid of result_set) {
-				let jsondata = json[rowid]
-				let stat_=await posturl(PostUrl,rowid,jsondata,frmMessageBox )
-				if (stat_!=0 )
-				{
-					alert("error:"+stat_)
-				}
-			}
+			console.log("Updated!");
 			for (var key in json) {
 				OriginalData[key] = "-1";
 			}
-		}
-
 		} else {
 			alert("constructing ... POST:\n" + JSON.stringify(json));
 		}
